@@ -126,7 +126,7 @@ with st.sidebar:
     if st.button("➕ New Chat", type="primary", use_container_width=True):
         new_sess = storage.create_new_session(
             provider=current_session.get("provider", "Google Gemini"),
-            model=current_session.get("model", "gemini-3.8-flash"),
+            model=current_session.get("model", "gemini-3.5-flash-lite"),
             persona=current_session.get("persona", "🤖 General Assistant"),
             system_prompt=current_session.get("system_prompt", "")
         )
@@ -364,21 +364,21 @@ if prompt_to_process:
         try:
             effective_key = custom_api_key.strip() if custom_api_key else None
             
-            # Stream generator
-            stream_gen = LLMService.stream_chat(
-                provider=selected_provider,
-                model=selected_model,
-                messages=current_session["messages"],
-                system_prompt=custom_prompt,
-                temperature=temperature,
-                max_output_tokens=max_tokens,
-                api_key=effective_key,
-                image_bytes=attached_image_bytes,
-                image_mime=attached_image_mime
-            )
+            with st.spinner("🤖 Thinking..."):
+                stream_gen = LLMService.stream_chat(
+                    provider=selected_provider,
+                    model=selected_model,
+                    messages=current_session["messages"],
+                    system_prompt=custom_prompt,
+                    temperature=temperature,
+                    max_output_tokens=max_tokens,
+                    api_key=effective_key,
+                    image_bytes=attached_image_bytes,
+                    image_mime=attached_image_mime
+                )
 
-            # Live streaming response
-            full_response = st.write_stream(stream_gen)
+                # Live streaming response
+                full_response = st.write_stream(stream_gen)
             elapsed = time.time() - start_time
             meta_info = f"⚡ Generated with {selected_model} in {elapsed:.2f}s"
 

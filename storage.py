@@ -29,7 +29,7 @@ def generate_title_from_prompt(prompt: str, max_words: int = 6) -> str:
 
 def create_new_session(
     provider: str = "Google Gemini",
-    model: str = "gemini-3.8-flash",
+    model: str = "gemini-3.5-flash-lite",
     persona: str = "🤖 General Assistant",
     system_prompt: str = ""
 ) -> Dict[str, Any]:
