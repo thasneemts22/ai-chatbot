@@ -135,45 +135,12 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Automated Model Configuration (Pre-tuned for best speed & quality)
+    # Automated Settings (Optimized for speed)
     selected_provider = "Google Gemini"
     selected_model = "gemini-3.5-flash-lite"
     temperature = config.DEFAULT_TEMPERATURE
     max_tokens = config.DEFAULT_MAX_TOKENS
     custom_api_key = None
-
-    # AI Persona Selection
-    persona_names = list(config.PERSONAS.keys())
-    current_persona = current_session.get("persona", persona_names[0])
-    selected_persona = st.selectbox(
-        "🎭 AI Persona",
-        options=persona_names,
-        index=persona_names.index(current_persona) if current_persona in persona_names else 0
-    )
-
-    custom_prompt = ""
-    if selected_persona == "🛠️ Custom System Prompt":
-        custom_prompt = st.text_area(
-            "Enter custom system instructions:",
-            value=current_session.get("system_prompt", ""),
-            placeholder="e.g. You are an expert Python mentor...",
-            height=100
-        )
-    else:
-        custom_prompt = config.PERSONAS[selected_persona]
-
-    # Update session configuration
-    if (current_session.get("provider") != selected_provider or
-        current_session.get("model") != selected_model or
-        current_session.get("persona") != selected_persona or
-        current_session.get("system_prompt") != custom_prompt):
-        current_session["provider"] = selected_provider
-        current_session["model"] = selected_model
-        current_session["persona"] = selected_persona
-        current_session["system_prompt"] = custom_prompt
-        storage.save_session(current_session)
-
-    st.markdown("---")
 
     # Conversation History List
     st.subheader("💬 Chat History")
@@ -234,21 +201,6 @@ with st.sidebar:
 # Main Chat Area
 # -----------------------------------------------------------------------------
 st.title(current_session.get("title", "New Chat"))
-st.caption(f"⚡ AI Assistant | Mode: **{selected_persona}**")
-
-# Multimodal Image Attachment (Gemini only)
-attached_image_bytes = None
-attached_image_mime = None
-if selected_provider == "Google Gemini":
-    with st.expander("📎 Attach Image (Multimodal Vision)", expanded=False):
-        uploaded_image = st.file_uploader(
-            "Upload an image to ask questions about it",
-            type=["png", "jpg", "jpeg", "webp"]
-        )
-        if uploaded_image:
-            st.image(uploaded_image, caption="Attached Image", width=300)
-            attached_image_bytes = uploaded_image.getvalue()
-            attached_image_mime = uploaded_image.type
 
 # Welcome / Empty State
 messages = current_session.get("messages", [])
@@ -286,6 +238,59 @@ for msg in messages:
         st.markdown(msg.get("content", ""))
         if "meta" in msg:
             st.markdown(f"<div class='chat-meta'>{msg['meta']}</div>", unsafe_allow_html=True)
+
+# -----------------------------------------------------------------------------
+# Bottom Chat Controls (AI Persona & Image Attachment right above typing bar)
+# -----------------------------------------------------------------------------
+attached_image_bytes = None
+attached_image_mime = None
+
+persona_names = list(config.PERSONAS.keys())
+current_persona = current_session.get("persona", persona_names[0])
+
+ctrl_col1, ctrl_col2 = st.columns([0.65, 0.35])
+
+with ctrl_col1:
+    selected_persona = st.selectbox(
+        "AI Persona",
+        options=persona_names,
+        index=persona_names.index(current_persona) if current_persona in persona_names else 0,
+        label_visibility="collapsed",
+        key="bottom_persona",
+        help="Select AI persona or mode"
+    )
+
+with ctrl_col2:
+    with st.popover("📎 Attach Image", use_container_width=True):
+        uploaded_image = st.file_uploader(
+            "Upload image for vision",
+            type=["png", "jpg", "jpeg", "webp"],
+            label_visibility="collapsed"
+        )
+        if uploaded_image:
+            st.image(uploaded_image, caption=uploaded_image.name, width=220)
+            attached_image_bytes = uploaded_image.getvalue()
+            attached_image_mime = uploaded_image.type
+
+if selected_persona == "🛠️ Custom System Prompt":
+    custom_prompt = st.text_input(
+        "Enter custom prompt instructions:",
+        value=current_session.get("system_prompt", ""),
+        placeholder="e.g. You are a senior Python specialist...",
+        label_visibility="collapsed"
+    )
+else:
+    custom_prompt = config.PERSONAS[selected_persona]
+
+# Update session persona if changed
+if (current_session.get("persona") != selected_persona or
+    current_session.get("system_prompt") != custom_prompt):
+    current_session["persona"] = selected_persona
+    current_session["system_prompt"] = custom_prompt
+    storage.save_session(current_session)
+
+if attached_image_bytes and uploaded_image:
+    st.caption(f"📎 Attached image: **{uploaded_image.name}** (will be sent with your next prompt)")
 
 # User Chat Input
 user_input = st.chat_input("Message ChatGPT...")
