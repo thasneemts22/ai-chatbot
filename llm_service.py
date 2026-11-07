@@ -103,24 +103,34 @@ class LLMService:
 
         client = genai.Client(api_key=key)
 
-        # Build conversation history in Google GenAI format
+        # Build normalized conversation history ensuring strict alternation: user -> model -> user
         contents: List[types.Content] = []
+        normalized_turns: List[Dict[str, Any]] = []
 
         for idx, msg in enumerate(messages):
-            role = "user" if msg["role"] == "user" else "model"
+            role = "user" if msg.get("role") == "user" else "model"
+            text = msg.get("content", "").strip()
+            if not text and not (idx == len(messages) - 1 and role == "user" and image_bytes):
+                continue
+            
+            # Merge consecutive turns of the same role so Gemini never rejects with invalid argument
+            if normalized_turns and normalized_turns[-1]["role"] == role:
+                normalized_turns[-1]["content"] += "\n\n" + text
+            else:
+                normalized_turns.append({"role": role, "content": text})
+
+        # Ensure first turn starts with user
+        while normalized_turns and normalized_turns[0]["role"] != "user":
+            normalized_turns.pop(0)
+
+        for idx, turn in enumerate(normalized_turns):
             parts = []
-
-            # Check if this is the latest user message with an attached image
-            if idx == len(messages) - 1 and role == "user" and image_bytes:
+            if idx == len(normalized_turns) - 1 and turn["role"] == "user" and image_bytes:
                 parts.append(types.Part.from_bytes(data=image_bytes, mime_type=image_mime))
-
-            # Add text part
-            text_content = msg.get("content", "").strip()
-            if text_content:
-                parts.append(types.Part.from_text(text=text_content))
-
+            if turn["content"]:
+                parts.append(types.Part.from_text(text=turn["content"]))
             if parts:
-                contents.append(types.Content(role=role, parts=parts))
+                contents.append(types.Content(role=turn["role"], parts=parts))
 
         # Generation configuration
         config = types.GenerateContentConfig(
