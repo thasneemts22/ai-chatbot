@@ -130,25 +130,47 @@ class LLMService:
             system_instruction=system_prompt if system_prompt else None
         )
 
-        try:
-            response_stream = client.models.generate_content_stream(
-                model=model,
-                contents=contents,
-                config=config
-            )
-            for chunk in response_stream:
-                if chunk.text:
-                    yield chunk.text
-        except Exception as e:
-            err_msg = str(e)
-            if "RESOURCE_EXHAUSTED" in err_msg:
-                raise RuntimeError("API Rate limit reached. Please wait a moment before trying again.") from e
-            elif "INVALID_ARGUMENT" in err_msg:
-                raise RuntimeError(f"Invalid API request or key: {err_msg}") from e
-            elif "ConnectError" in err_msg or "getaddrinfo" in err_msg:
-                raise RuntimeError("Network connection failed. Please ensure your device has internet access.") from e
-            else:
-                raise RuntimeError(f"Gemini API Error: {err_msg}") from e
+        # Candidate models with auto-fallback if one experiences a 503 high-demand spike
+        candidate_models = [model]
+        for fallback in ["gemini-3.5-flash", "gemini-3.7-flash", "gemini-3.1-flash-lite", "gemini-3.8-flash"]:
+            if fallback not in candidate_models:
+                candidate_models.append(fallback)
+
+        last_error = None
+        for candidate in candidate_models:
+            try:
+                response_stream = client.models.generate_content_stream(
+                    model=candidate,
+                    contents=contents,
+                    config=config
+                )
+                has_yielded = False
+                for chunk in response_stream:
+                    if chunk.text:
+                        yield chunk.text
+                        has_yielded = True
+                if has_yielded:
+                    return
+            except Exception as e:
+                err_msg = str(e)
+                last_error = e
+                # If high demand spike (503) or 404, try next candidate model in chain
+                if any(k in err_msg for k in ["503", "UNAVAILABLE", "high demand", "404"]):
+                    continue
+                elif "RESOURCE_EXHAUSTED" in err_msg:
+                    raise RuntimeError("API Rate limit reached. Please wait a moment before trying again.") from e
+                elif "INVALID_ARGUMENT" in err_msg:
+                    raise RuntimeError(f"Invalid API request or key: {err_msg}") from e
+                elif "ConnectError" in err_msg or "getaddrinfo" in err_msg:
+                    raise RuntimeError("Network connection failed. Please ensure your device has internet access.") from e
+                else:
+                    raise RuntimeError(f"Gemini API Error: {err_msg}") from e
+
+        if last_error:
+            raise RuntimeError(
+                "Google Gemini servers are temporarily experiencing high demand across all free flash models. "
+                "Please wait 10-20 seconds and click Retry."
+            ) from last_error
 
     @staticmethod
     def _stream_groq(
