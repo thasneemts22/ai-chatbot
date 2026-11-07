@@ -126,7 +126,7 @@ with st.sidebar:
     if st.button("➕ New Chat", type="primary", use_container_width=True):
         new_sess = storage.create_new_session(
             provider=current_session.get("provider", "Google Gemini"),
-            model=current_session.get("model", "gemini-2.5-flash"),
+            model=current_session.get("model", "gemini-3.8-flash"),
             persona=current_session.get("persona", "🤖 General Assistant"),
             system_prompt=current_session.get("system_prompt", "")
         )
@@ -150,10 +150,15 @@ with st.sidebar:
     model_labels = {m["id"]: m["name"] for m in provider_info["models"]}
     
     current_model = current_session.get("model", model_options[0])
+    if current_model not in model_options:
+        current_model = model_options[0]
+        current_session["model"] = current_model
+        storage.save_session(current_session)
+
     selected_model = st.selectbox(
         "Model",
         options=model_options,
-        index=model_options.index(current_model) if current_model in model_options else 0,
+        index=model_options.index(current_model),
         format_func=lambda x: model_labels.get(x, x)
     )
 
@@ -386,9 +391,13 @@ if prompt_to_process:
             }
             current_session["messages"].append(assistant_msg)
             storage.save_session(current_session)
+            
+            # Rerun on success to update session history and UI
+            st.rerun()
 
         except Exception as e:
-            st.error(f"❌ Error: {e}")
-
-    # Rerun to keep state in sync
-    st.rerun()
+            st.error(f"❌ Error generating response: {e}")
+            # Remove failed turn from messages so session is not corrupted
+            if current_session["messages"] and current_session["messages"][-1]["role"] == "user":
+                current_session["messages"].pop()
+                storage.save_session(current_session)
