@@ -200,38 +200,7 @@ with st.sidebar:
 # -----------------------------------------------------------------------------
 # Main Chat Area
 # -----------------------------------------------------------------------------
-head_col1, head_col2 = st.columns([0.68, 0.32])
-with head_col1:
-    st.title(current_session.get("title", "New Chat"))
-
-persona_names = list(config.PERSONAS.keys())
-current_persona = current_session.get("persona", persona_names[0])
-with head_col2:
-    selected_persona = st.selectbox(
-        "AI Mode",
-        options=persona_names,
-        index=persona_names.index(current_persona) if current_persona in persona_names else 0,
-        label_visibility="collapsed",
-        key="top_persona_selector",
-        help="Switch AI Persona (e.g. Coding, Tutor, Storyteller)"
-    )
-
-if selected_persona == "🛠️ Custom System Prompt":
-    custom_prompt = st.text_input(
-        "Enter custom instructions:",
-        value=current_session.get("system_prompt", ""),
-        placeholder="e.g. You are a senior Python specialist...",
-        label_visibility="collapsed"
-    )
-else:
-    custom_prompt = config.PERSONAS[selected_persona]
-
-# Update session persona if changed
-if (current_session.get("persona") != selected_persona or
-    current_session.get("system_prompt") != custom_prompt):
-    current_session["persona"] = selected_persona
-    current_session["system_prompt"] = custom_prompt
-    storage.save_session(current_session)
+st.title(current_session.get("title", "New Chat"))
 
 # Welcome / Empty State
 messages = current_session.get("messages", [])
@@ -269,6 +238,38 @@ for msg in messages:
         st.markdown(msg.get("content", ""))
         if "meta" in msg:
             st.markdown(f"<div class='chat-meta'>{msg['meta']}</div>", unsafe_allow_html=True)
+
+# Assistant Mode Selector directly above the chat input box
+persona_names = list(config.PERSONAS.keys())
+current_persona = current_session.get("persona", persona_names[0])
+
+mode_col, _ = st.columns([0.48, 0.52])
+with mode_col:
+    selected_persona = st.selectbox(
+        "AI Mode",
+        options=persona_names,
+        index=persona_names.index(current_persona) if current_persona in persona_names else 0,
+        label_visibility="collapsed",
+        key="bottom_chat_mode",
+        help="Switch Assistant Mode / Persona"
+    )
+
+if selected_persona == "🛠️ Custom System Prompt":
+    custom_prompt = st.text_input(
+        "Enter custom instructions:",
+        value=current_session.get("system_prompt", ""),
+        placeholder="e.g. You are a senior Python specialist...",
+        label_visibility="collapsed"
+    )
+else:
+    custom_prompt = config.PERSONAS[selected_persona]
+
+# Update session persona if changed
+if (current_session.get("persona") != selected_persona or
+    current_session.get("system_prompt") != custom_prompt):
+    current_session["persona"] = selected_persona
+    current_session["system_prompt"] = custom_prompt
+    storage.save_session(current_session)
 
 # User Chat Input with NATIVE file/image upload button directly INSIDE the input box!
 user_input_val = st.chat_input(
