@@ -1,0 +1,13 @@
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# Environment Secrets (Crucial: Never commit your API keys!)
+.env
+
+# Session data (optional, don't share private chat logs)
+data/sessions/
