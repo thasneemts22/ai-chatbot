@@ -135,39 +135,18 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Provider & Model Selection
-    st.subheader("⚙️ Model Settings")
-    provider_names = list(config.PROVIDERS.keys())
-    current_provider = current_session.get("provider", provider_names[0])
-    selected_provider = st.selectbox(
-        "Provider",
-        options=provider_names,
-        index=provider_names.index(current_provider) if current_provider in provider_names else 0
-    )
+    # Automated Model Configuration (Pre-tuned for best speed & quality)
+    selected_provider = "Google Gemini"
+    selected_model = "gemini-3.5-flash-lite"
+    temperature = config.DEFAULT_TEMPERATURE
+    max_tokens = config.DEFAULT_MAX_TOKENS
+    custom_api_key = None
 
-    provider_info = config.PROVIDERS[selected_provider]
-    model_options = [m["id"] for m in provider_info["models"]]
-    model_labels = {m["id"]: m["name"] for m in provider_info["models"]}
-    
-    current_model = current_session.get("model", model_options[0])
-    if current_model not in model_options:
-        current_model = model_options[0]
-        current_session["model"] = current_model
-        storage.save_session(current_session)
-
-    selected_model = st.selectbox(
-        "Model",
-        options=model_options,
-        index=model_options.index(current_model),
-        format_func=lambda x: model_labels.get(x, x)
-    )
-
-    # Persona / System Instructions
-    st.subheader("🎭 System Persona")
+    # AI Persona Selection
     persona_names = list(config.PERSONAS.keys())
     current_persona = current_session.get("persona", persona_names[0])
     selected_persona = st.selectbox(
-        "Persona",
+        "🎭 AI Persona",
         options=persona_names,
         index=persona_names.index(current_persona) if current_persona in persona_names else 0
     )
@@ -182,32 +161,6 @@ with st.sidebar:
         )
     else:
         custom_prompt = config.PERSONAS[selected_persona]
-
-    # Hyperparameters Accordion
-    with st.expander("🎛️ Advanced Parameters", expanded=False):
-        temperature = st.slider("Temperature (Creativity)", 0.0, 1.0, config.DEFAULT_TEMPERATURE, 0.05)
-        max_tokens = st.slider("Max Tokens", 256, 8192, config.DEFAULT_MAX_TOKENS, 256)
-
-    # API Key Configuration Accordion
-    with st.expander("🔑 API Keys", expanded=False):
-        env_key_name = provider_info["env_var"]
-        has_secret = False
-        try:
-            has_secret = hasattr(st, "secrets") and env_key_name in st.secrets
-        except Exception:
-            pass
-        has_env_key = bool(os.environ.get(env_key_name) or has_secret)
-        
-        if has_env_key:
-            st.success(f"✓ `{env_key_name}` detected")
-        else:
-            st.warning(f"⚠️ `{env_key_name}` not found in .env / secrets")
-
-        custom_api_key = st.text_input(
-            f"Override {selected_provider} API Key:",
-            type="password",
-            placeholder="Paste your API key here..."
-        )
 
     # Update session configuration
     if (current_session.get("provider") != selected_provider or
@@ -281,7 +234,7 @@ with st.sidebar:
 # Main Chat Area
 # -----------------------------------------------------------------------------
 st.title(current_session.get("title", "New Chat"))
-st.caption(f"Provider: **{selected_provider}** | Model: `{selected_model}` | Persona: *{selected_persona}*")
+st.caption(f"⚡ AI Assistant | Mode: **{selected_persona}**")
 
 # Multimodal Image Attachment (Gemini only)
 attached_image_bytes = None
