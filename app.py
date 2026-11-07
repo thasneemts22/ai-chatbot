@@ -200,7 +200,38 @@ with st.sidebar:
 # -----------------------------------------------------------------------------
 # Main Chat Area
 # -----------------------------------------------------------------------------
-st.title(current_session.get("title", "New Chat"))
+head_col1, head_col2 = st.columns([0.68, 0.32])
+with head_col1:
+    st.title(current_session.get("title", "New Chat"))
+
+persona_names = list(config.PERSONAS.keys())
+current_persona = current_session.get("persona", persona_names[0])
+with head_col2:
+    selected_persona = st.selectbox(
+        "AI Mode",
+        options=persona_names,
+        index=persona_names.index(current_persona) if current_persona in persona_names else 0,
+        label_visibility="collapsed",
+        key="top_persona_selector",
+        help="Switch AI Persona (e.g. Coding, Tutor, Storyteller)"
+    )
+
+if selected_persona == "🛠️ Custom System Prompt":
+    custom_prompt = st.text_input(
+        "Enter custom instructions:",
+        value=current_session.get("system_prompt", ""),
+        placeholder="e.g. You are a senior Python specialist...",
+        label_visibility="collapsed"
+    )
+else:
+    custom_prompt = config.PERSONAS[selected_persona]
+
+# Update session persona if changed
+if (current_session.get("persona") != selected_persona or
+    current_session.get("system_prompt") != custom_prompt):
+    current_session["persona"] = selected_persona
+    current_session["system_prompt"] = custom_prompt
+    storage.save_session(current_session)
 
 # Welcome / Empty State
 messages = current_session.get("messages", [])
@@ -239,74 +270,46 @@ for msg in messages:
         if "meta" in msg:
             st.markdown(f"<div class='chat-meta'>{msg['meta']}</div>", unsafe_allow_html=True)
 
-# -----------------------------------------------------------------------------
-# Bottom Chat Controls (AI Persona & Image Attachment right above typing bar)
-# -----------------------------------------------------------------------------
+# User Chat Input with NATIVE file/image upload button directly INSIDE the input box!
+user_input_val = st.chat_input(
+    "Message ChatGPT...",
+    accept_file=True,
+    file_type=["png", "jpg", "jpeg", "webp"]
+)
+
+# Parse text and attached image
+prompt_text = None
 attached_image_bytes = None
 attached_image_mime = None
 
-persona_names = list(config.PERSONAS.keys())
-current_persona = current_session.get("persona", persona_names[0])
+if pending_prompt:
+    prompt_text = pending_prompt
+elif user_input_val:
+    if hasattr(user_input_val, "text"):
+        prompt_text = (user_input_val.text or "").strip()
+        files = getattr(user_input_val, "files", []) or []
+        if files:
+            try:
+                attached_image_bytes = files[0].getvalue()
+                attached_image_mime = files[0].type
+            except Exception:
+                pass
+    elif isinstance(user_input_val, str):
+        prompt_text = user_input_val.strip()
 
-ctrl_col1, ctrl_col2 = st.columns([0.65, 0.35])
+if prompt_text or attached_image_bytes:
+    final_prompt = prompt_text if prompt_text else ("What is in this image?" if attached_image_bytes else "Hello")
 
-with ctrl_col1:
-    selected_persona = st.selectbox(
-        "AI Persona",
-        options=persona_names,
-        index=persona_names.index(current_persona) if current_persona in persona_names else 0,
-        label_visibility="collapsed",
-        key="bottom_persona",
-        help="Select AI persona or mode"
-    )
-
-with ctrl_col2:
-    with st.popover("📎 Attach Image", use_container_width=True):
-        uploaded_image = st.file_uploader(
-            "Upload image for vision",
-            type=["png", "jpg", "jpeg", "webp"],
-            label_visibility="collapsed"
-        )
-        if uploaded_image:
-            st.image(uploaded_image, caption=uploaded_image.name, width=220)
-            attached_image_bytes = uploaded_image.getvalue()
-            attached_image_mime = uploaded_image.type
-
-if selected_persona == "🛠️ Custom System Prompt":
-    custom_prompt = st.text_input(
-        "Enter custom prompt instructions:",
-        value=current_session.get("system_prompt", ""),
-        placeholder="e.g. You are a senior Python specialist...",
-        label_visibility="collapsed"
-    )
-else:
-    custom_prompt = config.PERSONAS[selected_persona]
-
-# Update session persona if changed
-if (current_session.get("persona") != selected_persona or
-    current_session.get("system_prompt") != custom_prompt):
-    current_session["persona"] = selected_persona
-    current_session["system_prompt"] = custom_prompt
-    storage.save_session(current_session)
-
-if attached_image_bytes and uploaded_image:
-    st.caption(f"📎 Attached image: **{uploaded_image.name}** (will be sent with your next prompt)")
-
-# User Chat Input
-user_input = st.chat_input("Message ChatGPT...")
-prompt_to_process = pending_prompt or user_input
-
-if prompt_to_process:
     # 1. Update session title if first message
     if len(messages) == 0:
-        new_title = storage.generate_title_from_prompt(prompt_to_process)
+        new_title = storage.generate_title_from_prompt(final_prompt)
         current_session["title"] = new_title
 
     # 2. Add user message
     now_str = datetime.now().strftime("%I:%M %p")
     user_msg = {
         "role": "user",
-        "content": prompt_to_process,
+        "content": final_prompt,
         "timestamp": now_str
     }
     current_session["messages"].append(user_msg)
@@ -314,7 +317,12 @@ if prompt_to_process:
 
     # Render User Message immediately
     with st.chat_message("user", avatar="🧑"):
-        st.markdown(prompt_to_process)
+        if attached_image_bytes:
+            try:
+                st.image(attached_image_bytes, width=280)
+            except Exception:
+                pass
+        st.markdown(final_prompt)
 
     # 3. Stream Assistant Response
     with st.chat_message("assistant", avatar="🤖"):
